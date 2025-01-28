@@ -1,0 +1,10 @@
+services:
+  web-vesnin:
+    build: .
+    command: python3 main.py
+    ports:
+      - "80:80"
+    expose:
+      - "80"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
