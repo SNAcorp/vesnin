@@ -1,6 +1,6 @@
 services:
   web-vesnin:
-    build: .
+    build: ..
     command: python3 main.py
     ports:
       - "80:80"
