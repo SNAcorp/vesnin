@@ -16,9 +16,12 @@ WORKDIR /app
 
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install pytest pytest-asyncio
 
 # Копируем исходный код в контейнер
 COPY .. .
+
+RUN pytest -vv
 
 # Указываем команду для запуска приложения
 CMD ["python3", "main.py"]
