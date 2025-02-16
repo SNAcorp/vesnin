@@ -1,0 +1,11 @@
+services:
+  web:
+    build: .
+    ports:
+      - "80:80"
+    volumes:
+      - .:/app
+      - ./data:/app/data
+    environment:
+      - CSV_PATH=/app/data/database.csv
+    command: uvicorn main:app --host 0.0.0.0 --port 80 --reload
