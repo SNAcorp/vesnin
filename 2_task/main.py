@@ -1,13 +1,14 @@
+import io
 import os
 from typing import List, Dict
 
-from fastapi import FastAPI, Request, HTTPException
+from fastapi import FastAPI, Request, HTTPException, UploadFile, File
 from fastapi.templating import Jinja2Templates
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 import pandas as pd
 from pydantic import BaseModel
-from starlette.responses import JSONResponse
+from starlette.responses import JSONResponse, RedirectResponse
 
 app = FastAPI()
 
@@ -54,13 +55,57 @@ def get_user_by_id(user_id: str) -> Dict[str, str] | None:
     return None
 
 
-@app.get("/", response_class=HTMLResponse)
+def validate_csv_structure(file_content: str) -> bool:
+    """Проверяет структуру CSV файла"""
+    required_columns = {'id', 'name', 'surname', 'second_name', 'email', 'phone_number'}
+
+    try:
+        df = pd.read_csv(io.StringIO(file_content))
+        columns = set(df.columns.str.strip())
+        return required_columns.issubset(columns)
+    except Exception:
+        return False
+
+
+def append_to_csv(file_content: str) -> bool:
+    """Добавляет данные в существующий CSV файл"""
+    try:
+        # Создаем директорию, если она не существует
+        os.makedirs(os.path.dirname(CSV_PATH), exist_ok=True)
+
+        # Читаем новые данные
+        new_df = pd.read_csv(io.StringIO(file_content))
+
+        # Если файл существует, добавляем к нему новые данные
+        if os.path.exists(CSV_PATH):
+            existing_df = pd.read_csv(CSV_PATH)
+            combined_df = pd.concat([existing_df, new_df], ignore_index=True)
+        else:
+            combined_df = new_df
+
+        # Удаляем дубликаты по id
+        combined_df = combined_df.drop_duplicates(subset=['id'], keep='last')
+
+        # Сохраняем результат
+        combined_df.to_csv(CSV_PATH, index=False)
+        return True
+    except Exception as e:
+        print(f"Ошибка при сохранении CSV: {str(e)}")
+        return False
+
+
+@app.get("/users", response_class=HTMLResponse)
 async def read_root(request: Request):
     data = get_data()
     return templates.TemplateResponse(
-        "base.html",
+        "users.html",
         {"request": request, "data": data}
     )
+
+
+@app.get("/", response_class=RedirectResponse)
+async def read_root():
+    return RedirectResponse(url="/users")
 
 
 @app.get("/api/users", response_model=List[User])
@@ -77,6 +122,44 @@ async def get_user(user_id: str):
             detail=f"Пользователь с ID {user_id} не найден"
         )
     return user
+
+
+@app.get("/upload", response_class=HTMLResponse)
+async def upload_page(request: Request):
+    return templates.TemplateResponse(
+        "upload.html",
+        {"request": request}
+    )
+
+
+@app.post("/api/upload-csv")
+async def upload_csv(file: UploadFile = File(...)):
+    """Загрузка CSV файла"""
+    try:
+        # Читаем содержимое файла
+        content = await file.read()
+        content_str = content.decode('utf-8')
+
+        # Проверяем структуру файла
+        if not validate_csv_structure(content_str):
+            raise HTTPException(
+                status_code=400,
+                detail="Неверная структура CSV файла"
+            )
+
+        # Добавляем данные в CSV
+        if not append_to_csv(content_str):
+            raise HTTPException(
+                status_code=500,
+                detail="Ошибка при сохранении данных"
+            )
+
+        return {"message": "Файл успешно загружен"}
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Ошибка при загрузке файла: {str(e)}"
+        )
 
 
 @app.get("/api/data")
