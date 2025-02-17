@@ -68,29 +68,50 @@ def validate_csv_structure(file_content: str) -> bool:
 
 
 def append_to_csv(file_content: str) -> bool:
-    """Добавляет данные в существующий CSV файл"""
+    """
+    Добавляет данные в CSV файл.
+    Удаляет дубликаты по номеру телефона, оставляя последнюю версию записи.
+    """
     try:
         # Создаем директорию, если она не существует
         os.makedirs(os.path.dirname(CSV_PATH), exist_ok=True)
 
+        # Определяем обязательные колонки
+        required_columns = [
+            'id', 'name', 'surname', 'second_name', 'email', 'phone_number'
+        ]
+
         # Читаем новые данные
         new_df = pd.read_csv(io.StringIO(file_content))
 
-        # Если файл существует, добавляем к нему новые данные
-        if os.path.exists(CSV_PATH):
-            existing_df = pd.read_csv(CSV_PATH)
-            combined_df = pd.concat([existing_df, new_df], ignore_index=True)
-        else:
-            combined_df = new_df
+        # Очищаем номера телефонов от пробелов и '+' для корректного сравнения
+        new_df['phone_number'] = new_df['phone_number'].astype(str).str.strip().str.replace('+', '')
 
-        # Удаляем дубликаты по id
-        combined_df = combined_df.drop_duplicates(subset=['id'], keep='last')
+        if os.path.exists(CSV_PATH):
+            # Читаем существующие данные
+            existing_df = pd.read_csv(CSV_PATH)
+            existing_df['phone_number'] = existing_df['phone_number'].astype(str).str.strip().str.replace('+', '')
+
+            # Объединяем данные
+            final_df = pd.concat([existing_df, new_df], ignore_index=True)
+
+            # Удаляем дубликаты по номеру телефона, оставляя последнюю запись
+            final_df = final_df.drop_duplicates(subset=['phone_number'], keep='last')
+        else:
+            # Если файла нет, просто удаляем дубликаты в новых данных
+            final_df = new_df.drop_duplicates(subset=['phone_number'], keep='last')
+
+        # Проверяем наличие всех обязательных колонок
+        for col in required_columns:
+            if col not in final_df.columns:
+                final_df[col] = None
 
         # Сохраняем результат
-        combined_df.to_csv(CSV_PATH, index=False)
+        final_df.to_csv(CSV_PATH, index=False)
         return True
+
     except Exception as e:
-        print(f"Ошибка при сохранении CSV: {str(e)}")
+        print(f"Error in append_to_csv: {e}")
         return False
 
 
@@ -136,18 +157,15 @@ async def upload_page(request: Request):
 async def upload_csv(file: UploadFile = File(...)):
     """Загрузка CSV файла"""
     try:
-        # Читаем содержимое файла
         content = await file.read()
         content_str = content.decode('utf-8')
 
-        # Проверяем структуру файла
         if not validate_csv_structure(content_str):
             raise HTTPException(
                 status_code=400,
                 detail="Неверная структура CSV файла"
             )
 
-        # Добавляем данные в CSV
         if not append_to_csv(content_str):
             raise HTTPException(
                 status_code=500,
@@ -155,6 +173,9 @@ async def upload_csv(file: UploadFile = File(...)):
             )
 
         return {"message": "Файл успешно загружен"}
+    except HTTPException:
+        # Пробрасываем HTTPException без изменений
+        raise
     except Exception as e:
         raise HTTPException(
             status_code=500,

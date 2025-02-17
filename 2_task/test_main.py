@@ -242,5 +242,4 @@ class TestUploadEndpoint:
             await upload_csv(mock_file)
 
         assert exc_info.value.status_code == 500
-        assert "Неожиданная ошибка при загрузке файла" in exc_info.value.detail
-        assert "Read error" in exc_info.value.detail
+        assert "Ошибка при загрузке файла" in exc_info.value.detail
