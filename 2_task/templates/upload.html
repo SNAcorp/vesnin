@@ -1,0 +1,87 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container mx-auto px-4 py-8">
+    <h2 class="text-2xl font-bold mb-4">Загрузка CSV файла</h2>
+    
+    <div class="mb-8">
+        <form id="uploadForm" class="space-y-4">
+            <div class="flex items-center justify-center w-full">
+                <label class="flex flex-col items-center justify-center w-full h-64 border-2 border-gray-300 border-dashed rounded-lg cursor-pointer bg-gray-50 hover:bg-gray-100">
+                    <div class="flex flex-col items-center justify-center pt-5 pb-6">
+                        <svg class="w-10 h-10 mb-3 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path>
+                        </svg>
+                        <p class="mb-2 text-sm text-gray-500">
+                            <span class="font-semibold">Нажмите для загрузки</span> или перетащите файл
+                        </p>
+                        <p class="text-xs text-gray-500">CSV файл</p>
+                    </div>
+                    <input id="csvFile" type="file" class="hidden" accept=".csv" />
+                </label>
+            </div>
+            <div class="flex justify-center">
+                <button type="submit" class="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors">
+                    Загрузить
+                </button>
+            </div>
+        </form>
+    </div>
+
+    <!-- Сообщение об успехе -->
+    <div id="successMessage" class="hidden p-4 mb-4 text-sm text-green-700 bg-green-100 rounded-lg">
+        Файл успешно загружен
+    </div>
+
+    <!-- Сообщение об ошибке -->
+    <div id="errorMessage" class="hidden p-4 mb-4 text-sm text-red-700 bg-red-100 rounded-lg">
+    </div>
+</div>
+
+<script>
+document.getElementById('uploadForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    
+    const fileInput = document.getElementById('csvFile');
+    const successMessage = document.getElementById('successMessage');
+    const errorMessage = document.getElementById('errorMessage');
+    
+    // Скрываем сообщения
+    successMessage.classList.add('hidden');
+    errorMessage.classList.add('hidden');
+    
+    if (!fileInput.files.length) {
+        errorMessage.textContent = 'Пожалуйста, выберите файл';
+        errorMessage.classList.remove('hidden');
+        return;
+    }
+
+    const formData = new FormData();
+    formData.append('file', fileInput.files[0]);
+
+    try {
+        const response = await fetch('/api/upload-csv', {
+            method: 'POST',
+            body: formData
+        });
+
+        const result = await response.json();
+
+        if (!response.ok) {
+            throw new Error(result.detail || 'Ошибка при загрузке файла');
+        }
+
+        successMessage.classList.remove('hidden');
+        fileInput.value = ''; // Очищаем input
+        
+        // Обновляем страницу через 2 секунды
+        setTimeout(() => {
+            window.location.reload();
+        }, 2000);
+    } catch (error) {
+        errorMessage.textContent = error.message;
+        errorMessage.classList.remove('hidden');
+    }
+});
+</script>
+{% endblock %}
